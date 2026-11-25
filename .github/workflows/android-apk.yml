@@ -31,7 +31,8 @@ jobs:
         run: |
           git clone https://github.com/bylaws/libadrenotools "$PROJECT_DIR/third_party/libadrenotools"
           git -C "$PROJECT_DIR/third_party/libadrenotools" checkout 8fae8ce254dfc1344527e05301e43f37dea2df80
-
+          git -C "$PROJECT_DIR/third_party/libadrenotools" submodule update --init --recursive
+     
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
