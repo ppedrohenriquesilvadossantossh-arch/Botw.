@@ -1,1 +1,88 @@
 
+name: BOTWRecompAndroid APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract project ZIP
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          unzip -q BOTWRecompAndroid-0.4.13-beta-github-actions.zip -d "$GITHUB_WORKSPACE"
+          echo "PROJECT_DIR=$GITHUB_WORKSPACE/BOTWRecompAndroid-0.4.13-beta" >> "$GITHUB_ENV"
+
+      - name: Restore libadrenotools submodule
+        run: |
+          git clone https://github.com/bylaws/libadrenotools "$PROJECT_DIR/third_party/libadrenotools"
+          git -C "$PROJECT_DIR/third_party/libadrenotools" checkout 8fae8ce254dfc1344527e05301e43f37dea2df80
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android packages
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;30.0.16248370" \
+            "cmake;3.30.4"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build patch pkg-config
+
+      - name: Build native dependencies
+        run: |
+          cd "$PROJECT_DIR"
+          bash android/deps/build_deps.sh
+
+      - name: Build game builder dependencies
+        run: |
+          export PATH="$ANDROID_HOME/cmake/3.30.4/bin:$PATH"
+          export ANDROID_NDK_LINUX="$ANDROID_HOME/ndk/30.0.16248370"
+          cd "$PROJECT_DIR"
+          bash android/deps/build_gen_deps.sh
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR/android/botwrecompandroid"
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BOTWRecompAndroid-debug-apk
+          path: BOTWRecompAndroid-0.4.13-beta/android/botwrecompandroid/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+          
